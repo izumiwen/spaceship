@@ -1,4 +1,4 @@
-import { layoutNextLine, prepareWithSegments, type PreparedTextWithSegments } from "@chenglou/pretext"
+import { layoutNextLine, prepareWithSegments, type LayoutCursor, type PreparedTextWithSegments } from "@chenglou/pretext"
 import "@fontsource-variable/jetbrains-mono/wght.css"
 import { $ } from "../dom.ts"
 import { centeredAt, type Point } from "../point.ts"
@@ -31,13 +31,13 @@ import { isSoundOn, setSoundOn, startSound, type Sound } from "./sound/engine.ts
 import { sounds } from "./sound/sounds.ts"
 import { showStatus } from "./status-line.ts"
 import { storyLayoutOf, type StoryLayout } from "./story-layout.ts"
-import { domPointAt, textOffsetOf } from "./text-offsets.ts"
+import { rangeAt, textOffsetOf } from "./text-offsets.ts"
 import { createTextStream, type Steering } from "./text-stream.ts"
 import { countWords, firstWords } from "./words.ts"
 
 const DWELL_MS = 100
-/** Generated words kept ready past the knob: whenever fewer remain, the stream continues the text, appending, never rewriting. */
-const BUFFER_WORDS = 300
+/** Generated characters kept ready past the knob (see `countWords`): whenever fewer remain, the stream continues the text, appending, never rewriting. */
+const BUFFER_WORDS = 600
 /** A top-up that adds no words (the source failed or said nothing) is retried after this long, doubling each time up to `MAX_RETRY_MS`. */
 const RETRY_MS = 1000
 const MAX_RETRY_MS = 16000
@@ -223,7 +223,7 @@ async function revealAttention() {
 function render() {
   /** Unrounded, unlike `clientWidth`: a line that fills the column exactly measures a hair wider than the rounded width. */
   const lines = layoutLines(prepareWords(), caret, element.getBoundingClientRect().width)
-  const text = lines.join(" ")
+  const text = lines.join("")
   const count = countWords(text)
 
   if (count !== shownCount) restartDwell()
@@ -337,14 +337,14 @@ function prepareWords() {
 function pointerTargets(): PointerTarget[] {
   const leads = attention.leads()
   return [
-    { rects: [handle.getBoundingClientRect()], pad: 5, wake: handle, label: () => `<b>${shownCount ?? 0}</b> words` },
+    { rects: [handle.getBoundingClientRect()], pad: 5, wake: handle, label: () => `<b>${shownCount ?? 0}</b> 字` },
     ...[...document.querySelectorAll<HTMLElement>(".future")].map((knob) => ({ rects: [knob.getBoundingClientRect()], pad: 5 })),
     ...attention.spans().map(({ phrase }, i) => ({
       rects: clientRectsOf(phrase),
       pad: 3,
       label: () => {
         const { relevance: value, isMeasuring } = relevance.relevanceOf(leads[i])
-        return isMeasuring ? "box <b>··</b>" : value === undefined ? "box" : `box <b>${value >= 1 ? "1.0" : value.toFixed(2).replace(/^0/, "")}</b>`
+        return isMeasuring ? "框 <b>··</b>" : value === undefined ? "框" : `框 <b>${value >= 1 ? "1.0" : value.toFixed(2).replace(/^0/, "")}</b>`
       },
     })),
     { rects: [modeToggle.getBoundingClientRect()], pad: TRAY_PAD_PX, isHotOnHover: true, wake: modeToggle },
@@ -354,11 +354,8 @@ function pointerTargets(): PointerTarget[] {
 }
 
 /** The viewport boxes of a span of the shown text, one per line it covers. */
-function clientRectsOf({ start, end }: Span) {
-  const range = document.createRange()
-  range.setStart(...domPointAt(element, start))
-  range.setEnd(...domPointAt(element, end))
-  return [...range.getClientRects()].filter(({ width }) => width > 0)
+function clientRectsOf(span: Span) {
+  return [...rangeAt(element, span).getClientRects()].filter(({ width }) => width > 0)
 }
 
 /**
@@ -417,7 +414,7 @@ function aimAt(x: number, y: number): Aim {
   const lines = layoutLines(prepareWords(), { line: target.line, x: Math.min(target.x, width) }, width)
   const knob = handle.getBoundingClientRect()
   return {
-    gap: countWords(lines.join(" ")) - (shownCount ?? 0),
+    gap: countWords(lines.join("")) - (shownCount ?? 0),
     tip: tipRect(),
     knob: { x: knob.x + knob.width / 2, y: knob.y + knob.height / 2 },
   }
@@ -429,12 +426,12 @@ function tipRect() {
   return caret && lastWordRect(layoutLines(prepareWords(), caret, element.getBoundingClientRect().width))
 }
 
-/** The viewport box of the last word of `lines`, laid out in the column. */
+/** The viewport box of the last character of `lines`, laid out in the column: the unit the knob counts (see `countWords`). */
 function lastWordRect(lines: string[]) {
   const index = lines.findLastIndex((line) => line.trim())
   if (index === -1) return
   const line = lines[index].trimEnd()
-  const word = line.slice(line.lastIndexOf(" ") + 1)
+  const word = [...line].at(-1)!
   const { left, top } = element.getBoundingClientRect()
   const lineHeight = parseFloat(style.lineHeight)
   const x = left + measure.measureText(line.slice(0, line.length - word.length)).width
@@ -451,19 +448,30 @@ function pullToward(_x: number, _y: number, words: number) {
   soundWordsCrossed(before, point)
 }
 
-/** The caret that shows exactly `count` words, or undefined while the text holds fewer. */
+/** The caret that shows at least `count` words, exactly that many unless the line cannot break there, or undefined while the text holds fewer. */
 function caretAfterWords(count: number): Caret | undefined {
   const width = element.getBoundingClientRect().width
   const layout = prepareWords()
-  let cursor
+  let cursor: LayoutCursor | undefined
   let seen = 0
   for (let line = 0; ; line++) {
     const next = layoutNextLine(layout, width, cursor)
     if (!next) return
     const words = countWords(next.text)
-    if (seen + words >= count) return { line, x: Math.min(width, measure.measureText(firstWords(next.text, count - seen)).width + 1) }
+    if (seen + words >= count) return { line, x: caretXShowing(count - seen, next.text, layout, cursor, width) }
     seen += words
     cursor = next.end
+  }
+}
+
+/**
+ * Where on a line starting at `start` the caret shows its first `count` characters. Chinese punctuation such as "，" may not start a line,
+ * so the character before it cannot be shown alone: the caret then moves past the pair, as the line breaks.
+ */
+function caretXShowing(count: number, lineText: string, layout: PreparedTextWithSegments, start: LayoutCursor | undefined, width: number) {
+  for (let shown = count; ; shown++) {
+    const x = Math.min(width, measure.measureText(firstWords(lineText, shown)).width + 1)
+    if (x >= width || countWords(layoutLines(layout, { line: 0, x }, width, start).join("")) >= count) return x
   }
 }
 
@@ -483,12 +491,12 @@ function refreshRail() {
   })
 }
 
-/** Each line's span of the text, where lines are joined by single spaces. */
+/** Each line's span of the text, where lines are joined with nothing between them. */
 function lineSpansOf(content: string): Span[] {
   let start = 0
   return content.split("\n").map((line) => {
     const span = { start, end: start + line.length }
-    start = span.end + 1
+    start = span.end
     return span
   })
 }
@@ -505,7 +513,7 @@ function soundWordsCrossed(before: number | undefined, point: Point) {
 function showSoundToggle() {
   const isOn = isSoundOn()
   soundToggle.setAttribute("aria-pressed", `${isOn}`)
-  soundToggle.querySelector("b")!.textContent = isOn ? "on" : "off"
+  soundToggle.querySelector("b")!.textContent = isOn ? "開" : "關"
 }
 
 /** Read on every use, since the centered column moves with the window. */

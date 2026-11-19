@@ -1,4 +1,4 @@
-import { layoutNextLine, type PreparedTextWithSegments } from "@chenglou/pretext"
+import { layoutNextLine, type LayoutCursor, type PreparedTextWithSegments } from "@chenglou/pretext"
 import type { Caret } from "./caret.ts"
 
 /**
@@ -7,9 +7,10 @@ import type { Caret } from "./caret.ts"
  */
 const FIT_TOLERANCE_PX = 1 / 64
 
-export function layoutLines(layout: PreparedTextWithSegments, caret: Caret, fullWidth: number) {
+/** Lays out from `start` (the text's start by default), `caret.line` counting from there. */
+export function layoutLines(layout: PreparedTextWithSegments, caret: Caret, fullWidth: number, start?: LayoutCursor) {
   const lines: string[] = []
-  let cursor
+  let cursor = start
   for (let i = 0; i <= caret.line; i++) {
     const width = i === caret.line ? caret.x : fullWidth
     const line = layoutNextLine(layout, width, cursor)

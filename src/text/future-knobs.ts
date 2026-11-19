@@ -12,7 +12,7 @@ import type { Span } from "./segments.ts"
 import type { Sound } from "./sound/engine.ts"
 import { sounds, type DragBed } from "./sound/sounds.ts"
 import type { StoryLayout } from "./story-layout.ts"
-import { domPointAt } from "./text-offsets.ts"
+import { rangeAt } from "./text-offsets.ts"
 
 const PENDING_VALUE = "…"
 /** Distances beyond touching the main knob: nearer than the dead zone no dimension is a candidate; at the gate the candidate is chosen. */
@@ -418,10 +418,7 @@ export function createFutureKnobs({
   }
 
   function rangeOf({ start, end }: Span) {
-    const range = document.createRange()
-    range.setStart(...domPointAt(textElement, start))
-    range.setEnd(...domPointAt(textElement, Math.min(end, story.text.length)))
-    return range
+    return rangeAt(textElement, { start, end: Math.min(end, story.text.length) })
   }
 
   function drag(knob: FutureKnob, point: Point) {
@@ -527,21 +524,21 @@ export function createFutureKnobs({
     if (!dimension) {
       element.style.setProperty("--fill", `${knob.progress}`)
       labelWith(knob.label, PENDING_VALUE)
-      element.setAttribute("aria-label", `future knob, choosing a dimension, double click to delete`)
+      element.setAttribute("aria-label", `未來旋鈕，正在選擇維度，按兩下可刪除`)
       if (!knob.menu) return [{ text: PENDING_VALUE, tone: "live" }]
       return knob.candidate === undefined ? [] : [{ text: previewOf(knob.menu[knob.candidate]) }]
     }
     const strength = strengthOf(knob)
     const value = valueOf({ dimension, position: positionOf(knob) })
     const percent = `${Math.round(strength * 100)}%`
-    const realized = knob.confidence === undefined ? "" : `${Math.round(knob.confidence * 100)}%${knob.pinned ? "" : " realized"}`
+    const realized = knob.confidence === undefined ? "" : `${Math.round(knob.confidence * 100)}%${knob.pinned ? "" : " 已實現"}`
     const isRealizing = knob.tracking !== undefined || knob.pinned !== undefined
     element.style.setProperty("--fill", `${isRealizing ? (knob.confidence ?? 0) : strength}`)
     element.toggleAttribute("data-tracking", knob.tracking !== undefined)
-    labelWith(knob.label, `${dimension.name}: ${value}`, realized)
-    const state = knob.pinned ? "realized and pinned beside its sentence" : `${strengthLevelOf(strength)} influence${realized && `, ${realized}`}`
-    element.setAttribute("aria-label", `future knob, ${dimension.name}: ${value}, ${state}, double click to delete`)
-    return [{ text: `${dimension.name}:`, tone: "dim" }, { text: value, tone: "live" }, { text: realized ? `${percent} · ${realized}` : percent }]
+    labelWith(knob.label, `${dimension.name}：${value}`, realized)
+    const state = knob.pinned ? "已實現，釘選在其句子旁" : `${strengthLevelOf(strength)}影響${realized && `，${realized}`}`
+    element.setAttribute("aria-label", `未來旋鈕，${dimension.name}：${value}，${state}，按兩下可刪除`)
+    return [{ text: `${dimension.name}：`, tone: "dim" }, { text: value, tone: "live" }, { text: realized ? `${percent} · ${realized}` : percent }]
   }
 
   function viewOf(knob: FutureKnob) {
@@ -550,7 +547,7 @@ export function createFutureKnobs({
   }
 
   function labelOf(knob: FutureKnob, dimension: Dimension) {
-    return `${dimension.name}: ${valueOf({ dimension, position: positionOf(knob) })}`
+    return `${dimension.name}：${valueOf({ dimension, position: positionOf(knob) })}`
   }
 
   function positionOf(knob: FutureKnob) {
@@ -586,7 +583,7 @@ function isSteering(knob: FutureKnob) {
 
 function previewOf(dimension: Dimension) {
   const offer = dimension.kind === "scale" ? `${dimension.low} ↔ ${dimension.high}` : dimension.options.join(" · ")
-  return `${dimension.name}: ${offer}`
+  return `${dimension.name}：${offer}`
 }
 
 /** Writes `text` into a knob's label, followed by `detail` set apart in a `<b>`. */

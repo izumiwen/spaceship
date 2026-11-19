@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <title>Spaceship</title>
+    <title>太空船 Spaceship</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>" />
     <style>
       @property --fill {
@@ -59,6 +59,10 @@
         color: var(--ink);
         font:
           var(--text-size) "JetBrains Mono Variable",
+          "Microsoft JhengHei",
+          "PingFang TC",
+          "Noto Sans CJK TC",
+          "Noto Sans TC",
           monospace;
         -webkit-font-smoothing: antialiased;
       }
@@ -576,7 +580,9 @@
         }
 
         /* Every reading has a fixed width that fits its widest value, so the centered tray never shifts as digits come and go. */
-        [data-field="rate"] b,
+        [data-field="rate"] b {
+          width: 10ch;
+        }
         [data-field="latency"] b {
           width: 7ch;
         }
@@ -862,24 +868,24 @@
       id="pointer"
       class="knob"
       type="button"
-      aria-label="drag to scrub the text forward or back, double click to expand attention highlights or remove everything attached, double click and hold to open the fan menu"
+      aria-label="拖曳可前後瀏覽文字，按兩下可展開注意力標示或移除所有附加項目，按兩下並按住可開啟扇形選單"
     ></button>
     <template id="future-knob">
-      <button class="knob future" type="button" aria-label="future knob, …, double click to delete"><span>…</span></button>
+      <button class="knob future" type="button" aria-label="未來旋鈕，…，按兩下可刪除"><span>…</span></button>
     </template>
     <div id="cursor" aria-hidden="true"></div>
     <footer id="tray">
-      <button id="mode-toggle" type="button" aria-pressed="false" aria-label="flight mode">mode<b>sim</b></button>
+      <button id="mode-toggle" type="button" aria-pressed="false" aria-label="飛行模式">模式<b>模擬</b></button>
       <output id="status" aria-live="off"></output>
-      <button id="sound-toggle" type="button" aria-pressed="true" aria-label="sound">♪<b>on</b></button>
-      <a id="extra-link" href="extra/style-1.html">extra</a>
+      <button id="sound-toggle" type="button" aria-pressed="true" aria-label="音效">♪<b>開</b></button>
+      <a id="extra-link" href="extra/style-1.html">附錄</a>
     </footer>
     <dialog id="live-keys" aria-labelledby="live-keys-title" aria-describedby="live-keys-note" closedby="closerequest">
       <form method="dialog" autocomplete="off">
-        <h2 id="live-keys-title">launch</h2>
-        <p id="live-keys-note">Lift off from the simulator to call the real API with your own keys, kept in this browser's local storage.</p>
+        <h2 id="live-keys-title">發射</h2>
+        <p id="live-keys-note">離開模擬器，用你自己的金鑰呼叫真正的 API；金鑰只保存在這個瀏覽器的 localStorage 中。</p>
         <label
-          >cerebras
+          >Cerebras
           <input
             name="cerebras"
             type="text"
@@ -895,7 +901,7 @@
             autofocus
         /></label>
         <label
-          >gemini
+          >Gemini
           <input
             name="gemini"
             type="text"
@@ -910,8 +916,8 @@
             data-form-type="other"
         /></label>
         <p class="actions">
-          <button type="button" command="close" commandfor="live-keys">abort</button>
-          <button value="live">launch</button>
+          <button type="button" command="close" commandfor="live-keys">中止</button>
+          <button value="live">發射</button>
         </p>
       </form>
     </dialog>

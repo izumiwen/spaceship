@@ -4,7 +4,7 @@ import { makeDraggable } from "./drag.ts"
 import { circleOf, distance, linkBetween, pathOf } from "./links.ts"
 import { wordSpans, type Span } from "./segments.ts"
 import { sounds } from "./sound/sounds.ts"
-import { domPointAt, textOffsetOf } from "./text-offsets.ts"
+import { rangeAt, textOffsetOf } from "./text-offsets.ts"
 
 const KEYWORD_HIGHLIGHT = "attention-word"
 /** The keyword of the box under the pointer or being dragged, set apart since it is what a drag moves. */
@@ -32,7 +32,7 @@ type AttentionKnobsOptions = {
 /**
  * Attention knobs are shaded boxes of words: generated around keywords by expanding, or made from a text selection.
  * Dragging a box moves its keyword to the word under the pointer; double clicking a box deletes it.
- * `text` must equal the element's text with line breaks as spaces, so offsets match the DOM text, which may be split across child elements.
+ * `text` must equal the element's text without its line breaks, so offsets match the DOM text (see `rangeAt`), which may be split across child elements.
  */
 export function createAttentionKnobs({ source, textElement, knob, linkPath, activeLinkPath, isPastEnd, onChange, onHover, onPaint }: AttentionKnobsOptions) {
   const lineHeight = parseFloat(getComputedStyle(textElement).lineHeight)
@@ -281,10 +281,7 @@ export function createAttentionKnobs({ source, textElement, knob, linkPath, acti
   }
 
   function rangeOf(firstWord: number, lastWord: number) {
-    const range = document.createRange()
-    range.setStart(...domPointAt(textElement, words[firstWord].start))
-    range.setEnd(...domPointAt(textElement, words[lastWord].end))
-    return range
+    return rangeAt(textElement, { start: words[firstWord].start, end: words[lastWord].end })
   }
 }
 

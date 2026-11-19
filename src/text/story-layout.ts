@@ -1,18 +1,18 @@
 import { sentenceSpans, type Span } from "./segments.ts"
 import { countWords, firstWords } from "./words.ts"
 
-const SENTENCE_END = /[.!?…]["'”’)\]]*$/
+const SENTENCE_END = /[.!?…。！？]["'”’)\]」』）]*$/
 
 /**
  * The text as laid out up to the main knob, and what is generated past it.
- * `text` is the shown text with line breaks as spaces, `content` the same with line breaks; `combined` continues `text` with the generated text past the knob, its whitespace collapsed.
+ * `text` is the shown text with its lines joined as written (each line keeps its own spaces), `content` the same with line breaks; `combined` continues `text` with the generated text past the knob, its whitespace collapsed.
  * `sentences` tile `combined`, trailing whitespace included.
  */
 export type StoryLayout = { content: string; text: string; combined: string; sentences: Span[] }
 
 /** `lines` are the lines shown up to the knob; `fullText` is everything generated so far, which may reach past the knob. */
 export function storyLayoutOf(lines: string[], fullText: string): StoryLayout {
-  const text = lines.join(" ")
+  const text = lines.join("")
   const upcoming = fullText.slice(firstWords(fullText, countWords(text)).length).replace(/\s+/g, " ")
   const combined = text + upcoming
   return { content: lines.join("\n"), text, combined, sentences: sentenceSpans(combined) }

@@ -50,7 +50,7 @@ export function createLeftRail(element: HTMLElement) {
     const lineOf = (offset: number) =>
       Math.max(
         0,
-        lines.findIndex(({ end }) => offset <= end),
+        lines.findIndex(({ end }) => offset < end),
       )
     const strengths = connection && lineStrengths(lines, connection)
     const focusLines = connection ? lines.flatMap((line, i) => (overlap(line, connection.focus) > 0 ? [i] : [])) : []

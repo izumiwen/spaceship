@@ -6,12 +6,12 @@ const RANGE_PX = 120
 const TETHER_RANGE_PX = 260
 /** Only the nearest target is labelled, and only this close. */
 const LABEL_NEAR = 0.6
-/** While steering, the knob closes this share of its gap (in words) each second, between `MIN_WPS` and `MAX_WPS`. */
+/** While steering, the knob closes this share of its gap (in characters, see `countWords`) each second, between `MIN_WPS` and `MAX_WPS`. */
 const PULL_RATE = 2.5
-const MIN_WPS = 3
-const MAX_WPS = 40
-/** The steering vector is ticked once per this many words still to go, like the ruler on a future knob's link. */
-const WORDS_PER_TICK = 5
+const MIN_WPS = 6
+const MAX_WPS = 80
+/** The steering vector is ticked once per this many characters still to go (see `countWords`), like the ruler on a future knob's link. */
+const WORDS_PER_TICK = 10
 /** Lines (the vector, the tether) stop short of the knob and the hand by this much. */
 const LINE_INSET_PX = 9
 /** Arm length of a corner bracket, and half the width of an I-beam's serifs. */
@@ -234,7 +234,7 @@ export function createPointer({ layer, targets, isDragging, zoneAt, caretAt, sel
     liveMarks.innerHTML = `<path class="contour" d="${block.contour}" /><path class="corners" d="${block.corners}" /><path class="ends" d="${iBeamAt(anchor)}${iBeamAt(focus)}" />`
   }
 
-  /** The steering vector from the knob to the hand, ticked per five words to go, and brackets on the last word shown as it moves forward. */
+  /** The steering vector from the knob to the hand, ticked per ten characters to go, and brackets on the last word shown as it moves forward. */
   function showVector(pointed: Aim | undefined, rate: number) {
     const state = !pointed || pointed.gap === 0 ? "off" : pointed.gap > 0 ? "pulling" : "behind"
     layer.dataset.steer = state
@@ -261,7 +261,7 @@ export function createPointer({ layer, targets, isDragging, zoneAt, caretAt, sel
       }).join(""),
     )
     if (state === "pulling" && tip) liveMarks.innerHTML += `<path class="corners" d="${outline([tip], TEXT_PAD_PX).corners}" />`
-    vectorLabel.innerHTML = state === "pulling" ? `<b>+${gap}</b> words · ${Math.round(rate)} w/s` : "behind the knob"
+    vectorLabel.innerHTML = state === "pulling" ? `<b>+${gap}</b> 字 · ${Math.round(rate)} 字/秒` : "在旋鈕之後"
     vectorLabel.style.translate = `${hand.x + 12}px ${hand.y + 10}px`
   }
 }

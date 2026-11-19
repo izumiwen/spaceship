@@ -2,50 +2,52 @@ import { storedApiKey, streamCompletion } from "../llm/cerebras.ts"
 import type { Dimension, DimensionContext, DimensionSource } from "./dimension.ts"
 
 const MENU_SIZE = 5
-const MAX_WORDS_PER_LABEL = 3
+const MAX_CHARACTERS_PER_LABEL = 8
 /** Stands for the options of `focus` in the list of axes; the model replaces it with the story's characters. */
-const CHARACTERS_SLOT = "<characters>"
+const CHARACTERS_SLOT = "<角色>"
+/** The option of `focus` besides the story's characters. */
+const NARRATOR = "敘事者"
 
-/** Independent axes of a short passage, most consequential first. `focus` has no generic options: its options are the story's characters. */
+/** Independent axes of a short passage, most consequential first. `焦點` (focus) has no generic options: its options are the story's characters. */
 const CATALOG: Dimension[] = [
-  { name: "tension", kind: "scale", low: "relaxed", high: "strained" },
-  { name: "resolution", kind: "scale", low: "open question", high: "answered" },
-  { name: "pace", kind: "scale", low: "compressed", high: "expanded" },
-  { name: "mode", kind: "choice", options: ["dialogue", "action", "description"] },
-  { name: "focus", kind: "choice", options: [] },
-  { name: "tone", kind: "choice", options: ["wry", "tender", "somber", "wondrous"] },
-  { name: "distance", kind: "scale", low: "outside view", high: "inside mind" },
-  { name: "fortune", kind: "scale", low: "worsens", high: "improves" },
-  { name: "surprise", kind: "scale", low: "expected", high: "unexpected" },
+  { name: "張力", kind: "scale", low: "放鬆", high: "緊繃" },
+  { name: "解答", kind: "scale", low: "懸而未決", high: "水落石出" },
+  { name: "節奏", kind: "scale", low: "緊湊", high: "鋪陳" },
+  { name: "寫法", kind: "choice", options: ["對話", "動作", "描寫"] },
+  { name: "焦點", kind: "choice", options: [] },
+  { name: "語氣", kind: "choice", options: ["詼諧", "溫柔", "沉重", "奇幻"] },
+  { name: "距離", kind: "scale", low: "旁觀視角", high: "內心視角" },
+  { name: "命運", kind: "scale", low: "惡化", high: "好轉" },
+  { name: "意外", kind: "scale", low: "意料之中", high: "出乎意料" },
 ]
 
 const SYSTEM_PROMPT = `
-The user message has the start of a story, cut off where the reader is, sometimes the reader's key phrases (keyword in brackets), and a list of axes. Each axis is one way the next 100 words could vary, written as "name: label | label".
+使用者訊息包含一個故事的開頭（在讀者目前讀到的地方截斷）、有時還有讀者的關鍵片語（關鍵詞在方括號中），以及一份軸線清單。每條軸線是接下來 200 字可能變化的一個方向，寫成「名稱: 標籤 | 標籤」。
 
-Pick the axes that matter most for what could happen next at this point, as many as asked, most important first. With key phrases, favor the axes that act on them. Output the picked lines unchanged, one per line, and nothing else.
+挑出在這個時間點上，對接下來可能發生的事最重要的軸線，數量依要求，最重要的排在最前面。有關鍵片語時，優先挑選會作用在它們身上的軸線。把挑中的行原封不動地輸出，每行一條，除此之外什麼都不要輸出。
 
-The one exception is focus, which is who the passage follows: replace <characters> with each character present in the story, by name or in at most 3 words. Leave focus out when the story has no character yet.
+唯一的例外是「焦點」，也就是這段文字要跟隨誰：把 ${CHARACTERS_SLOT} 換成故事中出現的每一個角色，用名字或最多 ${MAX_CHARACTERS_PER_LABEL} 個字稱呼。故事還沒有任何角色時，不要挑「焦點」。
 
-EXAMPLE
-User:
-Story: Mara had locked the kitchen an hour ago. Now a chair scraped across its tiles, and her brother was not answering his phone. She lay still and
-Axes:
-tension: relaxed | strained
-pace: compressed | expanded
-mode: dialogue | action | description
-focus: <characters> | narrator
-fortune: worsens | improves
-Pick 3.
-Assistant:
-tension: relaxed | strained
-focus: Mara | her brother | narrator
-mode: dialogue | action | description
+範例
+使用者：
+故事：瑪拉一小時前就把廚房鎖上了。現在一張椅子在磁磚上刮出聲響，而她的哥哥沒有接電話。她躺著一動也不動，然後
+軸線：
+張力: 放鬆 | 緊繃
+節奏: 緊湊 | 鋪陳
+寫法: 對話 | 動作 | 描寫
+焦點: ${CHARACTERS_SLOT} | ${NARRATOR}
+命運: 惡化 | 好轉
+挑 3 條。
+助理：
+張力: 放鬆 | 緊繃
+焦點: 瑪拉 | 她的哥哥 | ${NARRATOR}
+寫法: 對話 | 動作 | 描寫
 `.trim()
 
 /** One call offers the menu: the free catalog axes that matter most here, with the story's characters as the options of `focus`. Axes the model leaves out or garbles are filled in from the catalog. */
 export const liveDimension: DimensionSource = async function* (context, signal) {
   const apiKey = storedApiKey()
-  if (!apiKey) throw new Error("save an API key first")
+  if (!apiKey) throw new Error("請先儲存 API 金鑰")
 
   const takenNames = context.taken.map(({ name }) => name.toLowerCase())
   const free = CATALOG.filter(({ name }) => !takenNames.includes(name))
@@ -83,20 +85,20 @@ async function* linesOf(deltas: AsyncIterable<string>) {
 }
 
 function userMessageOf({ text, leads }: DimensionContext, free: Dimension[], size: number) {
-  const keyPhrases = leads.length ? `Key phrases:\n${leads.map(({ before, keyword, after }) => `- ${before}[${keyword}]${after}`).join("\n")}\n` : ""
-  return `Story: ${text}\n${keyPhrases}Axes:\n${free.map(axisLine).join("\n")}\nPick ${size}.`
+  const keyPhrases = leads.length ? `關鍵片語：\n${leads.map(({ before, keyword, after }) => `- ${before}[${keyword}]${after}`).join("\n")}\n` : ""
+  return `故事：${text}\n${keyPhrases}軸線：\n${free.map(axisLine).join("\n")}\n挑 ${size} 條。`
 }
 
 function axisLine(axis: Dimension) {
   if (axis.kind === "scale") return `${axis.name}: ${axis.low} | ${axis.high}`
-  return `${axis.name}: ${axis.options.length ? axis.options.join(" | ") : `${CHARACTERS_SLOT} | narrator`}`
+  return `${axis.name}: ${axis.options.length ? axis.options.join(" | ") : `${CHARACTERS_SLOT} | ${NARRATOR}`}`
 }
 
-/** Reads a "name: label | label" line as one of `axes`, keeping that axis's kind; undefined when it is not one of them or its labels do not fit the kind. */
+/** Reads a "name: label | label" line as one of `axes`, keeping that axis's kind; undefined when it is not one of them or its labels do not fit the kind. The full-width "：" and "｜" are read as well. */
 function dimensionOf(line: string, axes: Dimension[]): Dimension | undefined {
-  const [name, rest] = line.split(":", 2).map((part) => part.trim())
+  const [name, rest] = line.split(/[:：]/, 2).map((part) => part.trim())
   const axis = axes.find((axis) => axis.name === name.toLowerCase())
-  const labels = (rest ?? "").split("|").map(plainLabel)
+  const labels = (rest ?? "").split(/[|｜]/).map(plainLabel)
   if (!axis || !labels.every(isValidLabel)) return
 
   if (axis.kind === "scale") return labels.length === 2 ? { name: axis.name, kind: "scale", low: labels[0], high: labels[1] } : undefined
@@ -106,11 +108,11 @@ function dimensionOf(line: string, axes: Dimension[]): Dimension | undefined {
 /** Drops a parenthesised aside, which the model sometimes adds to a character. */
 function plainLabel(label: string) {
   return label
-    .replace(/\(.*?\)/g, "")
+    .replace(/[(（].*?[)）]/g, "")
     .replace(/\s+/g, " ")
     .trim()
 }
 
 function isValidLabel(label: string) {
-  return label !== "" && label !== CHARACTERS_SLOT && label.split(" ").length <= MAX_WORDS_PER_LABEL
+  return label !== "" && label !== CHARACTERS_SLOT && [...label].length <= MAX_CHARACTERS_PER_LABEL
 }
